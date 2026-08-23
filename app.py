@@ -50,7 +50,7 @@ settings = get_settings()
 
 with st.form("explain-pr"):
     pr_url = st.text_input("GitHub pull-request URL", value=DEMO_PR_URL)
-    col1, col2 = st.columns([1, 4])
+    col1, col2, col3 = st.columns([1, 1, 3])
     with col1:
         offline = st.checkbox(
             "Offline demo",
@@ -58,6 +58,13 @@ with st.form("explain-pr"):
             help="Uses only cached or bundled data and does not fetch arbitrary PRs.",
         )
     with col2:
+        refresh = st.checkbox(
+            "Refresh live data",
+            value=False,
+            disabled=offline,
+            help="Ignores the cached analysis and queries Greptile and Claude-Mem again.",
+        )
+    with col3:
         st.caption(
             "Cached data only" if offline else "Live: GitHub + Greptile + Codex CLI"
         )
@@ -68,7 +75,9 @@ with st.form("explain-pr"):
 if submitted:
     with st.spinner("Tracing the feature through code and memory…"):
         try:
-            st.session_state["analysis"] = build_pipeline().explain(pr_url, offline=offline)
+            st.session_state["analysis"] = build_pipeline().explain(
+                pr_url, offline=offline, refresh=refresh
+            )
             st.session_state.pop("analysis_error", None)
         except (InvalidPullRequestURL, OfflineDataUnavailable) as exc:
             st.session_state["analysis_error"] = str(exc)
@@ -139,7 +148,11 @@ if result := st.session_state.get("analysis"):
                         st.caption(memory.narrative)
                     st.caption(f"Observation {memory.observation_id}")
         else:
-            st.info("No relevant Claude-Mem observations were available for this analysis.")
+            memory_warning = next(
+                (warning for warning in result.warnings if "Claude-Mem" in warning),
+                "No relevant Claude-Mem observations were available for this analysis.",
+            )
+            st.info(memory_warning)
 
     download_col1, download_col2, link_col = st.columns([1, 1, 2])
     with download_col1:
@@ -166,4 +179,5 @@ if result := st.session_state.get("analysis"):
         )
 
     for warning in result.warnings:
-        st.warning(warning)
+        if "Claude-Mem" not in warning:
+            st.warning(warning)

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     claude_mem_enabled: bool = True
     claude_mem_base_url: str | None = None
+    claude_mem_timeout_seconds: float = Field(default=30, gt=0)
 
     prism_cache_dir: Path = Path(".cache/prism")
     prism_offline_demo: bool = False

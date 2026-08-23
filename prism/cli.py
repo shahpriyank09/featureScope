@@ -31,6 +31,10 @@ def explain(
         bool,
         typer.Option("--offline", help="Use only cached or bundled fixture data."),
     ] = False,
+    refresh: Annotated[
+        bool,
+        typer.Option("--refresh", help="Ignore the cache and refresh all live context."),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Print the complete result as JSON."),
@@ -44,7 +48,7 @@ def explain(
 
     pipeline = ExplainPipeline(get_settings())
     try:
-        result = pipeline.explain(pr_url, offline=offline)
+        result = pipeline.explain(pr_url, offline=offline, refresh=refresh)
     except (InvalidPullRequestURL, OfflineDataUnavailable) as exc:
         console.print(f"[bold red]Error:[/bold red] {exc}")
         raise typer.Exit(code=2) from exc
@@ -113,6 +117,7 @@ def show_config() -> None:
         "codex_cli_timeout_seconds": settings.codex_cli_timeout_seconds,
         "claude_mem_enabled": settings.claude_mem_enabled,
         "claude_mem_base_url": settings.resolved_claude_mem_base_url(),
+        "claude_mem_timeout_seconds": settings.claude_mem_timeout_seconds,
         "cache_dir": str(settings.prism_cache_dir),
         "offline_demo": settings.prism_offline_demo,
     }
