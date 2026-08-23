@@ -16,6 +16,13 @@ from prism.rendering.repository_map import render_repository_map_html
 DEMO_PR_URL = "https://github.com/acme-inc/checkout-platform/pull/42"
 
 
+def _is_hidden_greptile_warning(warning: str) -> bool:
+    """Hide the expected optional-context miss for repos Greptile has not indexed."""
+    return warning.startswith(
+        "Greptile repository context unavailable: Repository not found:"
+    )
+
+
 st.set_page_config(
     page_title="PRism — Pull requests, explained visually",
     page_icon="◆",
@@ -115,8 +122,8 @@ if result := st.session_state.get("analysis"):
     with reason_col:
         st.info(diagram.selection_reason)
 
-    diagram_tab, repository_tab, explanation_tab, evidence_tab, memory_tab = st.tabs(
-        ["Feature diagram", "Repository map", "Explanation", "Code evidence", "Memory"]
+    repository_tab, diagram_tab, explanation_tab, evidence_tab, memory_tab = st.tabs(
+        ["Repository map", "Feature diagram", "Explanation", "Code evidence", "Memory"]
     )
 
     with diagram_tab:
@@ -239,5 +246,5 @@ if result := st.session_state.get("analysis"):
         )
 
     for warning in result.warnings:
-        if "Claude-Mem" not in warning:
+        if "Claude-Mem" not in warning and not _is_hidden_greptile_warning(warning):
             st.warning(warning)

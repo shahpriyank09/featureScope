@@ -22,6 +22,10 @@ class ClaudeMemClient:
     def search_for_pull_request(
         self, pull_request: PullRequestContext, limit: int = 5
     ) -> ClaudeMemSearchResult:
+        demo_memory = _demo_memory_for(pull_request)
+        if demo_memory:
+            return ClaudeMemSearchResult(observations=[demo_memory])
+
         if not self.base_url:
             return ClaudeMemSearchResult(observations=[])
 
@@ -140,3 +144,37 @@ def _total_results(payload: Any) -> int | None:
 
 def _optional_string(value: Any) -> str | None:
     return str(value) if value is not None else None
+
+
+def _demo_memory_for(pull_request: PullRequestContext) -> MemoryObservation | None:
+    """Provide one clearly-labelled demo observation while the shared store is empty.
+
+    This is deliberately scoped to the hackathon demo PR and is never written to
+    Claude-Mem. Real observations returned by Claude-Mem continue to be used for
+    every other pull request.
+    """
+    reference = pull_request.reference
+    if (reference.owner, reference.repository, reference.number) != (
+        "karpathy",
+        "nanochat",
+        833,
+    ):
+        return None
+
+    return MemoryObservation(
+        observation_id="demo-nanochat-pr-833",
+        title="Demo memory: portable attention backend decision",
+        relevance=(
+            "PR #833 makes attention execution portable: prefer FlashAttention 3 on "
+            "supported NVIDIA hardware, use FlashAttention 2 on ROCm when present, "
+            "then fall back to PyTorch SDPA everywhere else."
+        ),
+        narrative=(
+            "Temporary PRism demo memory for this PR while the connected Claude-Mem "
+            "store has no observations. It covers the backend-dispatch change in "
+            "nanochat/flash_attention.py and the backend reporting update in "
+            "scripts/base_train.py; it is not persisted to Claude-Mem."
+        ),
+        project="karpathy/nanochat",
+        created_at="2026-08-23T00:00:00Z",
+    )

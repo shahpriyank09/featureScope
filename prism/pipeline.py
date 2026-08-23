@@ -130,7 +130,7 @@ class ExplainPipeline:
         )
 
         warnings = list(generated.warnings)
-        if greptile.error:
+        if greptile.error and not _is_optional_greptile_repository_miss(greptile.error):
             warnings.append(greptile.error)
         if memory_search.warning:
             warnings.append(memory_search.warning)
@@ -180,3 +180,10 @@ def _replace_claude_mem_warning(
     if replacement:
         updated.append(replacement)
     return updated
+
+
+def _is_optional_greptile_repository_miss(error: str) -> bool:
+    """A missing Greptile index should not make an otherwise complete PR analysis noisy."""
+    return error.startswith(
+        "Greptile repository context unavailable: Repository not found:"
+    )

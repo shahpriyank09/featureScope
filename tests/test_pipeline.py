@@ -5,7 +5,11 @@ import pytest
 from prism.config import Settings
 from prism.integrations.claude_mem import ClaudeMemSearchResult
 from prism.models import AnalysisResult, AnalysisSource, DiagramType
-from prism.pipeline import ExplainPipeline, OfflineDataUnavailable
+from prism.pipeline import (
+    ExplainPipeline,
+    OfflineDataUnavailable,
+    _is_optional_greptile_repository_miss,
+)
 
 
 DEMO_URL = "https://github.com/acme-inc/checkout-platform/pull/42"
@@ -83,3 +87,10 @@ def test_cached_analysis_rechecks_missing_claude_mem_context(tmp_path: Path) -> 
     assert result.warnings == [
         "Claude-Mem is connected, but its database has no observations yet."
     ]
+
+
+def test_expected_unindexed_greptile_repository_error_is_non_blocking() -> None:
+    assert _is_optional_greptile_repository_miss(
+        "Greptile repository context unavailable: Repository not found: karpathy/nanochat on github"
+    )
+    assert not _is_optional_greptile_repository_miss("Greptile request timed out")

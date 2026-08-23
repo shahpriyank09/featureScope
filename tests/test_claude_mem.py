@@ -93,3 +93,20 @@ def test_search_surfaces_timeouts(monkeypatch) -> None:
     assert result.observations == []
     assert result.warning is not None
     assert "timed out after 12 seconds" in result.warning
+
+
+def test_nanochat_pr_833_uses_the_clearly_labelled_demo_memory() -> None:
+    demo_pr = PullRequestContext(
+        reference=PRReference(owner="karpathy", repository="nanochat", number=833),
+        title="Portable attention backends",
+        head_sha="def456",
+        html_url="https://github.com/karpathy/nanochat/pull/833",
+    )
+
+    result = ClaudeMemClient(None).search_for_pull_request(demo_pr)
+
+    assert result.warning is None
+    assert len(result.observations) == 1
+    assert result.observations[0].observation_id == "demo-nanochat-pr-833"
+    assert result.observations[0].title.startswith("Demo memory:")
+    assert "not persisted" in result.observations[0].narrative
