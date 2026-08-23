@@ -4,6 +4,97 @@ PRism turns a GitHub pull request into an evidence-backed visual explanation and
 
 > Paste a PR URL to see where the change fits, how it works, and why it changed.
 
+## Quick setup
+
+### 1. Check the prerequisites
+
+PRism requires Python 3.11 or newer, `uv`, and the Codex CLI.
+
+```bash
+python3 --version
+uv --version
+codex --version
+```
+
+On macOS, install missing tools with:
+
+```bash
+brew install uv
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```
+
+See the official [Codex CLI documentation](https://developers.openai.com/codex/cli) for other
+platforms and installation methods.
+
+### 2. Install the Python dependencies
+
+From the repository root:
+
+```bash
+uv sync --extra dev
+```
+
+### 3. Sign in to Codex CLI
+
+```bash
+codex
+codex login status
+```
+
+Choose **Sign in with ChatGPT** when prompted. PRism uses this Codex CLI session, so an
+`OPENAI_API_KEY` is not required.
+
+### 4. Configure PRism
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set:
+
+```dotenv
+GREPTILE_API_KEY=your_greptile_key
+GITHUB_TOKEN=your_github_token
+CODEX_MODEL=gpt-5.6-sol
+```
+
+- `GREPTILE_API_KEY` should be the hackathon-provided key. The repository must also be available
+  to Greptile for repository-aware context.
+- `GITHUB_TOKEN` is recommended for public repositories and required when accessing a private
+  repository. Never commit this token.
+- `CODEX_MODEL=gpt-5.6-sol` prioritizes diagram quality for judging. Use `gpt-5.6-terra` if live
+  generation needs to be faster.
+- Claude-Mem is optional. Leave `CLAUDE_MEM_BASE_URL` empty for automatic local worker discovery,
+  or set `CLAUDE_MEM_ENABLED=false` until Claude-Mem is running.
+
+Confirm that configuration was loaded without printing secret values:
+
+```bash
+uv run prism show-config
+```
+
+### 5. Run the website
+
+```bash
+uv run streamlit run app.py
+```
+
+Open `http://localhost:8501` and choose the mode that matches the PR:
+
+- For a real GitHub PR, leave **Offline demo** unchecked. PRism uses GitHub, Greptile, and Codex.
+- For the bundled example, enable **Offline demo** and use
+  `https://github.com/acme-inc/checkout-platform/pull/42`.
+
+An arbitrary PR cannot run in offline mode until it has been analyzed live and cached. If you see
+`No cached or fixture data is available`, uncheck **Offline demo** and submit the PR again.
+
+### 6. Verify the CLI and tests
+
+```bash
+uv run prism explain https://github.com/karpathy/nanochat/pull/826
+uv run pytest
+```
+
 This README is both the initial product specification and an implementation brief for a coding agent. The project should be built primarily with OpenAI Codex to satisfy the hackathon requirement. Claude or other tools may be used as secondary tools.
 
 ## Demo experience
@@ -19,12 +110,35 @@ This README is both the initial product specification and an implementation brie
    - Relevant Claude-Mem history
 5. The user clicks **Export to slides**.
 
+## Current build
+
+The first working vertical slice is implemented:
+
+- Streamlit website and Typer CLI
+- Strict GitHub PR URL parsing
+- Live GitHub PR and changed-file retrieval
+- Greptile MCP adapter with graceful degradation
+- Claude-Mem local search adapter with automatic worker-port discovery
+- Codex CLI structured-output generation with a deterministic fallback
+- Pydantic evidence and graph validation
+- Flowchart, sequence-diagram, and state-machine Mermaid rendering
+- SHA-aware JSON caching and offline fixtures
+- Mermaid and complete-analysis downloads
+- Automated tests and a browser-tested offline demo
+
+Slide export remains a P1 feature. The bundled example is deliberately synthetic so it works
+without API credentials:
+
+```text
+https://github.com/acme-inc/checkout-platform/pull/42
+```
+
 ## Product roles
 
 - **GitHub** provides PR metadata, changed files, patches, links, and source evidence.
 - **Greptile** provides PR-review and repository-aware context from an indexed codebase.
 - **Claude-Mem** retrieves previous discoveries, decisions, and diagrams.
-- **OpenAI** converts the collected context into a validated structured diagram specification.
+- **Codex CLI** converts the collected context into a validated structured diagram specification.
 - **PRism** renders the result and exports it for sharing.
 
 ## Technical approach
@@ -36,7 +150,7 @@ Build the first version in Python.
 - Typer and Rich for an optional CLI using the same pipeline
 - Pydantic for structured diagram models and validation
 - HTTPX for GitHub, Greptile, and Claude-Mem requests
-- OpenAI Python SDK for diagram generation
+- Codex CLI non-interactive mode for diagram generation
 - Mermaid for diagram rendering
 - `python-pptx` for slide export
 - Pytest for tests
@@ -84,47 +198,49 @@ prism/
 │   ├── config.py
 │   ├── pipeline.py
 │   ├── models.py
+│   ├── pr_url.py
 │   ├── integrations/
 │   │   ├── github.py
 │   │   ├── greptile.py
 │   │   └── claude_mem.py
 │   ├── generation/
-│   │   ├── selector.py
-│   │   ├── prompts.py
 │   │   └── generator.py
 │   ├── rendering/
-│   │   ├── mermaid.py
-│   │   └── slides.py
+│   │   └── mermaid.py
 │   └── cache.py
 ├── fixtures/
 │   └── demo/
 └── tests/
     ├── test_pr_url.py
     ├── test_models.py
+    ├── test_mermaid.py
     └── test_pipeline.py
 ```
 
 Keep this as one repository and one Python environment. Do not create microservices for the hackathon version.
 
-## Environment variables
+## Configuration reference
 
 Create `.env` locally from `.env.example`.
 
 ```dotenv
-# Required secrets
+# Recommended for repository-aware Greptile context
 GREPTILE_API_KEY=
-OPENAI_API_KEY=
 
 # Recommended for dependable GitHub API access
 GITHUB_TOKEN=
 
 # Non-secret configuration
 GREPTILE_MCP_URL=https://api.greptile.com/mcp
-OPENAI_MODEL=
+
+# Codex CLI uses the account authenticated by `codex login`; no OpenAI API key is needed
+CODEX_CLI_PATH=codex
+CODEX_MODEL=gpt-5.6-sol
+CODEX_CLI_TIMEOUT_SECONDS=240
 
 # Optional local Claude-Mem connection
 CLAUDE_MEM_ENABLED=true
-CLAUDE_MEM_BASE_URL=http://127.0.0.1:REPLACE_WITH_ACTUAL_PORT
+CLAUDE_MEM_BASE_URL=
 
 # Demo reliability
 PRISM_CACHE_DIR=.cache/prism
@@ -137,13 +253,24 @@ Never commit `.env`. Commit only `.env.example` with empty values.
 
 The Greptile API key must have access to the selected, indexed demo repository. For local Claude-Mem, resolve the worker port from `~/.claude-mem/settings.json`; a separate Claude-Mem API key is normally unnecessary.
 
-## Commands
-
-The finished project should support both interfaces.
+PRism runs `codex exec` in an ephemeral, read-only sandbox and constrains its final response with
+the `DiagramSpec` JSON Schema. Check local authentication before the demo:
 
 ```bash
-# Install
-uv sync
+codex login status
+```
+
+No OpenAI API key is required when Codex CLI is authenticated with ChatGPT. PRism does not pass
+the GitHub or Greptile token into the Codex subprocess.
+
+## Useful commands
+
+```bash
+# Install or update dependencies
+uv sync --extra dev
+
+# Show configuration status without revealing secrets
+uv run prism show-config
 
 # Run the website
 uv run streamlit run app.py
@@ -157,6 +284,15 @@ uv run prism explain PR_URL --offline
 # Run tests
 uv run pytest
 ```
+
+To try the bundled example immediately, enable **Offline demo** in the website or run:
+
+```bash
+uv run prism explain https://github.com/acme-inc/checkout-platform/pull/42 --offline
+```
+
+Before a live Greptile demo, verify the organizer-provided key, repository indexing, and MCP tool
+names. Greptile failures are surfaced as warnings so GitHub plus Codex analysis can still finish.
 
 ## Core pipeline
 

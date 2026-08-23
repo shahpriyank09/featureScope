@@ -1,0 +1,166 @@
+{
+  "pull_request": {
+    "reference": {
+      "owner": "acme-inc",
+      "repository": "checkout-platform",
+      "number": 42
+    },
+    "title": "Add resilient payment retry lifecycle",
+    "body": "Introduces explicit payment states and guarded retry transitions so duplicate webhooks cannot charge a customer twice.",
+    "base_ref": "main",
+    "head_sha": "8b7c1b2473b14d70b25da8bb57f1491b56f30abc",
+    "html_url": "https://github.com/acme-inc/checkout-platform/pull/42",
+    "author": "demo-engineer",
+    "changed_files": [
+      {
+        "filename": "payments/state.py",
+        "status": "added",
+        "additions": 48,
+        "deletions": 0,
+        "patch": "+class PaymentState:\n+    PENDING = 'pending'\n+    PROCESSING = 'processing'\n+    RETRY_WAIT = 'retry_wait'\n+    SUCCEEDED = 'succeeded'\n+    FAILED = 'failed'",
+        "blob_url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/state.py"
+      },
+      {
+        "filename": "payments/service.py",
+        "status": "modified",
+        "additions": 83,
+        "deletions": 19,
+        "patch": "+if payment.state == RETRY_WAIT and retry_due(payment):\n+    payment.transition_to(PROCESSING)\n+    gateway.charge(payment.idempotency_key)",
+        "blob_url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/service.py"
+      },
+      {
+        "filename": "webhooks/stripe.py",
+        "status": "modified",
+        "additions": 31,
+        "deletions": 8,
+        "patch": "+if event.id in processed_events:\n+    return\n+record_event(event.id)\n+payment_service.apply_result(event)",
+        "blob_url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/webhooks/stripe.py"
+      }
+    ]
+  },
+  "diagram": {
+    "diagram_type": "state_machine",
+    "title": "Resilient payment retry lifecycle",
+    "selection_reason": "The feature is governed by explicit payment states and guarded transitions.",
+    "summary": "A payment starts pending, moves into processing, and either succeeds, fails permanently, or waits before retrying. Duplicate provider webhooks are ignored, and the same idempotency key is reused so a retry cannot create a second charge.",
+    "participants": [],
+    "nodes": [
+      {
+        "id": "pending",
+        "label": "Pending",
+        "kind": "state",
+        "evidence_ids": ["state_definition"]
+      },
+      {
+        "id": "processing",
+        "label": "Processing",
+        "kind": "state",
+        "evidence_ids": ["retry_service"]
+      },
+      {
+        "id": "retry_wait",
+        "label": "Waiting to retry",
+        "kind": "state",
+        "evidence_ids": ["state_definition", "retry_service"]
+      },
+      {
+        "id": "succeeded",
+        "label": "Succeeded",
+        "kind": "terminal",
+        "evidence_ids": ["state_definition", "webhook_guard"]
+      },
+      {
+        "id": "failed",
+        "label": "Failed permanently",
+        "kind": "terminal",
+        "evidence_ids": ["state_definition"]
+      }
+    ],
+    "edges": [
+      {
+        "source": "pending",
+        "target": "processing",
+        "label": "attempt charge"
+      },
+      {
+        "source": "processing",
+        "target": "succeeded",
+        "label": "provider confirms"
+      },
+      {
+        "source": "processing",
+        "target": "retry_wait",
+        "label": "temporary failure"
+      },
+      {
+        "source": "retry_wait",
+        "target": "processing",
+        "label": "retry becomes due"
+      },
+      {
+        "source": "processing",
+        "target": "failed",
+        "label": "not retryable"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "state_definition",
+        "source": "github",
+        "file_path": "payments/state.py",
+        "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/state.py",
+        "description": "Defines the five payment lifecycle states.",
+        "excerpt": "PENDING → PROCESSING → RETRY_WAIT, SUCCEEDED, or FAILED"
+      },
+      {
+        "id": "retry_service",
+        "source": "github",
+        "file_path": "payments/service.py",
+        "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/service.py",
+        "description": "Moves due retries back to processing and reuses the idempotency key.",
+        "excerpt": "payment.transition_to(PROCESSING); gateway.charge(payment.idempotency_key)"
+      },
+      {
+        "id": "webhook_guard",
+        "source": "github",
+        "file_path": "webhooks/stripe.py",
+        "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/webhooks/stripe.py",
+        "description": "Ignores provider events that have already been processed.",
+        "excerpt": "if event.id in processed_events: return"
+      }
+    ],
+    "memories": [
+      {
+        "observation_id": "decision-17",
+        "title": "Retries must reuse the original idempotency key",
+        "relevance": "Explains why retrying a timed-out request cannot create a second charge.",
+        "narrative": "A previous incident showed that generating a new key during retry could create duplicate provider charges.",
+        "project": "checkout-platform",
+        "created_at": "2026-08-12T18:20:00Z"
+      },
+      {
+        "observation_id": "discovery-23",
+        "title": "Stripe webhooks are delivered at least once",
+        "relevance": "Explains the processed-event guard in the webhook handler.",
+        "narrative": "Webhook delivery may repeat after a timeout, so handlers must be idempotent.",
+        "project": "checkout-platform",
+        "created_at": "2026-08-18T09:14:00Z"
+      }
+    ]
+  },
+  "greptile": {
+    "available": true,
+    "summary": "The PR adds a payment state model, retry transitions, and duplicate webhook protection.",
+    "review_comments": [
+      "Retry attempts preserve the original payment idempotency key.",
+      "Processed provider event IDs prevent duplicate state transitions."
+    ],
+    "raw": {},
+    "error": null
+  },
+  "source": "fixture",
+  "generated_at": "2026-08-23T12:00:00Z",
+  "warnings": [
+    "Bundled demonstration data is being shown."
+  ]
+}
