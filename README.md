@@ -96,6 +96,12 @@ uv run prism explain https://github.com/karpathy/nanochat/pull/826
 uv run pytest
 ```
 
+For deterministic quality and local fallback-latency measurements, see [EVALS.md](EVALS.md):
+
+```bash
+uv run prism-evals --iterations 100
+```
+
 This README is both the initial product specification and an implementation brief for a coding agent. The project should be built primarily with OpenAI Codex to satisfy the hackathon requirement. Claude or other tools may be used as secondary tools.
 
 ## Demo experience

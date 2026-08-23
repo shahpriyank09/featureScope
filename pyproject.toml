@@ -30,6 +30,7 @@ slides = [
 
 [project.scripts]
 prism = "prism.cli:app"
+prism-evals = "prism.evals:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["prism"]
