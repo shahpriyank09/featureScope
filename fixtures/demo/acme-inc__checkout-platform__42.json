@@ -158,6 +158,160 @@
     "raw": {},
     "error": null
   },
+  "repository_map": {
+    "repository": "acme-inc/checkout-platform",
+    "base_sha": null,
+    "head_sha": "8b7c1b2473b14d70b25da8bb57f1491b56f30abc",
+    "overview": "A checkout platform that coordinates payment state, retry handling, and Stripe webhook processing.",
+    "nodes": [
+      {
+        "id": "directory:cGF5bWVudHM",
+        "label": "payments",
+        "path": "payments",
+        "kind": "directory",
+        "status": "impacted",
+        "language": null,
+        "symbols": [],
+        "url": null,
+        "focused": true
+      },
+      {
+        "id": "directory:d2ViaG9va3M",
+        "label": "webhooks",
+        "path": "webhooks",
+        "kind": "directory",
+        "status": "impacted",
+        "language": null,
+        "symbols": [],
+        "url": null,
+        "focused": true
+      },
+      {
+        "id": "file:cGF5bWVudHMvc3RhdGUucHk",
+        "label": "state.py",
+        "path": "payments/state.py",
+        "kind": "file",
+        "status": "added",
+        "language": "Python",
+        "symbols": ["PaymentState"],
+        "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/state.py",
+        "focused": true
+      },
+      {
+        "id": "file:cGF5bWVudHMvc2VydmljZS5weQ",
+        "label": "service.py",
+        "path": "payments/service.py",
+        "kind": "file",
+        "status": "modified",
+        "language": "Python",
+        "symbols": ["retry_due", "apply_result"],
+        "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/service.py",
+        "focused": true
+      },
+      {
+        "id": "file:d2ViaG9va3Mvc3RyaXBlLnB5",
+        "label": "stripe.py",
+        "path": "webhooks/stripe.py",
+        "kind": "file",
+        "status": "modified",
+        "language": "Python",
+        "symbols": ["handle_event"],
+        "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/webhooks/stripe.py",
+        "focused": true
+      }
+    ],
+    "edges": [
+      {
+        "source": "directory:cGF5bWVudHM",
+        "target": "file:cGF5bWVudHMvc3RhdGUucHk",
+        "kind": "contains",
+        "label": "contains"
+      },
+      {
+        "source": "directory:cGF5bWVudHM",
+        "target": "file:cGF5bWVudHMvc2VydmljZS5weQ",
+        "kind": "contains",
+        "label": "contains"
+      },
+      {
+        "source": "directory:d2ViaG9va3M",
+        "target": "file:d2ViaG9va3Mvc3RyaXBlLnB5",
+        "kind": "contains",
+        "label": "contains"
+      },
+      {
+        "source": "file:cGF5bWVudHMvc2VydmljZS5weQ",
+        "target": "file:cGF5bWVudHMvc3RhdGUucHk",
+        "kind": "imports",
+        "label": "imports"
+      },
+      {
+        "source": "file:d2ViaG9va3Mvc3RyaXBlLnB5",
+        "target": "file:cGF5bWVudHMvc2VydmljZS5weQ",
+        "kind": "imports",
+        "label": "imports"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "block:cGF5bWVudHM",
+        "label": "Payments",
+        "path": "payments",
+        "status": "modified",
+        "description": "The Payments architecture block owns payment lifecycle state and retry execution.",
+        "note_path": "Blocks/payments.md",
+        "note": "# Payments\n\nThe Payments architecture block owns payment lifecycle state and retry execution.\n\n## Files\n\n- payments/state.py — added\n- payments/service.py — modified\n",
+        "files": [
+          {
+            "path": "payments/state.py",
+            "status": "added",
+            "language": "Python",
+            "symbols": ["PaymentState"],
+            "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/state.py"
+          },
+          {
+            "path": "payments/service.py",
+            "status": "modified",
+            "language": "Python",
+            "symbols": ["retry_due", "apply_result"],
+            "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/payments/service.py"
+          }
+        ],
+        "focused": true
+      },
+      {
+        "id": "block:d2ViaG9va3M",
+        "label": "Webhooks",
+        "path": "webhooks",
+        "status": "modified",
+        "description": "The Webhooks architecture block receives Stripe events and protects payment processing from duplicates.",
+        "note_path": "Blocks/webhooks.md",
+        "note": "# Webhooks\n\nThe Webhooks architecture block receives Stripe events and protects payment processing from duplicates.\n\n## Files\n\n- webhooks/stripe.py — modified\n",
+        "files": [
+          {
+            "path": "webhooks/stripe.py",
+            "status": "modified",
+            "language": "Python",
+            "symbols": ["handle_event"],
+            "url": "https://github.com/acme-inc/checkout-platform/blob/8b7c1b2473b14d70b25da8bb57f1491b56f30abc/webhooks/stripe.py"
+          }
+        ],
+        "focused": true
+      }
+    ],
+    "block_edges": [
+      {
+        "source": "block:cGF5bWVudHM",
+        "target": "block:d2ViaG9va3M",
+        "relationship_count": 1,
+        "label": "1 detected import"
+      }
+    ],
+    "total_files": 3,
+    "analyzed_files": 3,
+    "truncated": false,
+    "error": null
+  },
   "source": "fixture",
   "generated_at": "2026-08-23T12:00:00Z",
   "warnings": [

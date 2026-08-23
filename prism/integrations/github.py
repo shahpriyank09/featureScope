@@ -50,6 +50,7 @@ class GitHubClient:
             title=pull["title"],
             body=pull.get("body") or "",
             base_ref=pull.get("base", {}).get("ref") or "main",
+            base_sha=pull.get("base", {}).get("sha"),
             head_sha=pull["head"]["sha"],
             html_url=pull["html_url"],
             author=(pull.get("user") or {}).get("login"),

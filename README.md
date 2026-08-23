@@ -82,7 +82,8 @@ uv run streamlit run app.py
 
 Open `http://localhost:8501` and choose the mode that matches the PR:
 
-- For a real GitHub PR, leave **Offline demo** unchecked. PRism uses GitHub, Greptile, and Codex.
+- For a real GitHub PR, leave **Offline demo** unchecked. PRism uses GitHub, a local read-only
+  Git snapshot, optional Greptile context, and Codex.
 - For the bundled example, enable **Offline demo** and use
   `https://github.com/acme-inc/checkout-platform/pull/42`.
 
@@ -106,6 +107,8 @@ This README is both the initial product specification and an implementation brie
 4. PRism displays:
    - The automatically selected diagram type
    - An interactive diagram
+   - An interactive architecture-block map with changed blocks highlighted
+   - Hoverable Obsidian notes describing each block and its files
    - A plain-English explanation
    - Code evidence for important diagram elements
    - Relevant Claude-Mem history
@@ -118,6 +121,9 @@ The first working vertical slice is implemented:
 - Streamlit website and Typer CLI
 - Strict GitHub PR URL parsing
 - Live GitHub PR and changed-file retrieval
+- Local base/head Git snapshots and an interactive architecture-block impact map
+- Import, directory, test, language, and top-level-symbol discovery
+- Generated block README notes and a downloadable Obsidian vault
 - Greptile MCP adapter with graceful degradation
 - Claude-Mem local search adapter with automatic worker-port discovery
 - Codex CLI structured-output generation with a deterministic fallback
@@ -137,6 +143,7 @@ https://github.com/acme-inc/checkout-platform/pull/42
 ## Product roles
 
 - **GitHub** provides PR metadata, changed files, patches, links, and source evidence.
+- **Local Git analysis** maps the base/head repository structure, imports, tests, and changed area.
 - **Greptile** provides PR-review and repository-aware context from an indexed codebase.
 - **Claude-Mem** retrieves previous discoveries, decisions, and diagrams.
 - **Codex CLI** converts the collected context into a validated structured diagram specification.
@@ -151,6 +158,7 @@ Build the first version in Python.
 - Typer and Rich for an optional CLI using the same pipeline
 - Pydantic for structured diagram models and validation
 - HTTPX for GitHub, Greptile, and Claude-Mem requests
+- Git CLI plus Python AST/targeted parsers for bounded repository graph extraction
 - Codex CLI non-interactive mode for diagram generation
 - Mermaid for diagram rendering
 - `python-pptx` for slide export
@@ -168,6 +176,8 @@ PR URL parser
         |
         +----> GitHub client ------> PR metadata, patch, evidence
         |
+        +----> Local Git mapper ---> modules, imports, tests, PR overlay
+        |
         +----> Greptile client ----> repository-aware PR context
         |
         +----> Claude-Mem client --> related observations and timeline
@@ -179,6 +189,7 @@ Diagram generator
 Pydantic validation and evidence checks
         |
         +----> Mermaid renderer
+        +----> Interactive repository graph
         +----> Plain-English explanation
         +----> Slide exporter
         +----> Local cache
@@ -203,11 +214,13 @@ prism/
 │   ├── integrations/
 │   │   ├── github.py
 │   │   ├── greptile.py
+│   │   ├── local_repository.py
 │   │   └── claude_mem.py
 │   ├── generation/
 │   │   └── generator.py
 │   ├── rendering/
-│   │   └── mermaid.py
+│   │   ├── mermaid.py
+│   │   └── repository_map.py
 │   └── cache.py
 ├── fixtures/
 │   └── demo/
@@ -305,15 +318,19 @@ names. Greptile failures are surfaced as warnings so GitHub plus Codex analysis 
 
 1. Validate and parse the GitHub PR URL.
 2. Fetch PR title, description, base/head SHAs, changed files, patches, and links.
-3. Fetch available Greptile PR/review context.
-4. Search Claude-Mem using the repository name, PR title, and important changed symbols.
-5. Retrieve full details only for the most relevant memory results.
-6. Ask the model to select one primary diagram type.
-7. Ask the model for a structured `DiagramSpec`, not arbitrary Mermaid text.
-8. Validate the structure and remove or mark unsupported claims.
-9. Convert `DiagramSpec` into Mermaid.
-10. Render the diagram, explanation, evidence, and memory panels.
-11. Cache the result using repository, PR number, and head SHA.
+3. Fetch the exact base and PR-head commits into a bounded, read-only local Git cache.
+4. Extract repository modules, directory membership, imports, tests, and important symbols.
+5. Aggregate files into architecture blocks and detect relationships between those blocks.
+6. Generate an Obsidian-ready README note for every block, including its purpose and files.
+7. Overlay added, modified, removed, and connected blocks on the repository graph.
+8. Fetch available Greptile PR/review context.
+9. Search Claude-Mem using the repository name, PR title, and important changed symbols.
+10. Retrieve full details only for the most relevant memory results.
+11. Ask the model to select one primary diagram type.
+12. Ask the model for a structured `DiagramSpec`, not arbitrary Mermaid text.
+13. Validate the structure and remove or mark unsupported claims.
+14. Render the feature diagram, repository map, explanation, evidence, and memory panels.
+15. Cache the result using repository, PR number, and head SHA.
 
 ## Supported diagram types
 
@@ -411,6 +428,14 @@ The result screen should contain:
 - PR title and repository
 - Selected diagram type and selection reason
 - Interactive Mermaid diagram
+- Purpose-built **Repository map** change-impact landscape
+- Changed blocks centered between connected-context lanes
+- **Change impact** and **Full architecture** modes
+- Color-coded changed and directly connected blocks
+- Rich block cards with purpose, file count, and direct-change count
+- Hover highlighting for the selected block and its relationships
+- README preview with block purpose, contained files, symbols, and direct edits
+- Downloadable Obsidian vault with one Markdown note per architecture block
 - Plain-English explanation
 - Expandable code-evidence panel
 - Expandable Claude-Mem history panel
@@ -468,6 +493,7 @@ Prepare and rehearse one primary PR before judging. Do not depend on a first-tim
 - Organization-wide authentication
 - Private-repository OAuth flow
 - A complete graph of every file and function
+- Deep semantic call graphs for every supported programming language
 - Multiple simultaneous diagrams
 - Collaborative editing
 - Cloud deployment

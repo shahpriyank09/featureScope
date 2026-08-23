@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -7,6 +9,8 @@ from prism.config import get_settings
 from prism.pipeline import ExplainPipeline, OfflineDataUnavailable
 from prism.pr_url import InvalidPullRequestURL
 from prism.rendering.mermaid import render_mermaid, render_mermaid_html
+from prism.rendering.obsidian import build_obsidian_vault, obsidian_vault_filename
+from prism.rendering.repository_map import render_repository_map_html
 
 
 DEMO_PR_URL = "https://github.com/acme-inc/checkout-platform/pull/42"
@@ -62,11 +66,13 @@ with st.form("explain-pr"):
             "Refresh live data",
             value=False,
             disabled=offline,
-            help="Ignores the cached analysis and queries Greptile and Claude-Mem again.",
+            help="Re-fetches GitHub, the local repository map, Greptile, and Claude-Mem.",
         )
     with col3:
         st.caption(
-            "Cached data only" if offline else "Live: GitHub + Greptile + Codex CLI"
+            "Cached data only"
+            if offline
+            else "Live: GitHub + local Git + Greptile + Codex CLI"
         )
         submitted = st.form_submit_button(
             "Explain this PR", type="primary", use_container_width=True
@@ -109,14 +115,68 @@ if result := st.session_state.get("analysis"):
     with reason_col:
         st.info(diagram.selection_reason)
 
-    diagram_tab, explanation_tab, evidence_tab, memory_tab = st.tabs(
-        ["Diagram", "Explanation", "Code evidence", "Memory"]
+    diagram_tab, repository_tab, explanation_tab, evidence_tab, memory_tab = st.tabs(
+        ["Feature diagram", "Repository map", "Explanation", "Code evidence", "Memory"]
     )
 
     with diagram_tab:
         components.html(render_mermaid_html(mermaid), height=660, scrolling=True)
         with st.expander("View Mermaid source"):
             st.code(mermaid, language="mermaid")
+
+    with repository_tab:
+        repository_map = result.repository_map
+        if repository_map and repository_map.blocks:
+            if repository_map.overview:
+                st.markdown(
+                    f'<p class="prism-subtitle">{html.escape(repository_map.overview)}</p>',
+                    unsafe_allow_html=True,
+                )
+            stat1, stat2, stat3, stat4 = st.columns(4)
+            changed_statuses = {"added", "modified", "removed", "renamed"}
+            changed_count = sum(
+                block.status.value in changed_statuses for block in repository_map.blocks
+            )
+            impacted_count = sum(
+                block.status.value == "impacted" for block in repository_map.blocks
+            )
+            with stat1:
+                st.metric("Architecture blocks", len(repository_map.blocks))
+            with stat2:
+                st.metric("Changed blocks", changed_count)
+            with stat3:
+                st.metric("Connected blocks", impacted_count)
+            with stat4:
+                st.metric("Mapped files", repository_map.analyzed_files)
+            if repository_map.truncated:
+                st.caption(
+                    f"Showing the {repository_map.analyzed_files} most relevant of "
+                    f"{repository_map.total_files} mappable files."
+                )
+            st.caption(
+                f"{len(repository_map.block_edges)} cross-block relationships detected. "
+                "Hover over a block to preview its Obsidian README and contained files."
+            )
+            components.html(
+                render_repository_map_html(repository_map), height=845, scrolling=False
+            )
+            st.download_button(
+                "Download Obsidian vault",
+                data=build_obsidian_vault(repository_map),
+                file_name=obsidian_vault_filename(repository_map),
+                mime="application/zip",
+                use_container_width=True,
+            )
+        elif repository_map and repository_map.error:
+            st.warning(repository_map.error)
+            st.info(
+                "The feature diagram is still available. Refresh after Git can access the "
+                "repository and both PR commit snapshots."
+            )
+        else:
+            st.info(
+                "This cached analysis predates repository maps. Run a live refresh to build one."
+            )
 
     with explanation_tab:
         st.markdown(f"### What changed\n\n{diagram.summary}")

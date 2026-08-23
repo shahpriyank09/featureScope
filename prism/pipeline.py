@@ -9,7 +9,14 @@ from prism.generation.generator import DiagramGenerator
 from prism.integrations.claude_mem import ClaudeMemClient, ClaudeMemSearchResult
 from prism.integrations.github import GitHubClient
 from prism.integrations.greptile import GreptileClient
-from prism.models import AnalysisResult, AnalysisSource, GreptileContext, PullRequestContext
+from prism.integrations.local_repository import LocalRepositoryMapper
+from prism.models import (
+    AnalysisResult,
+    AnalysisSource,
+    GreptileContext,
+    PullRequestContext,
+    RepositoryMap,
+)
 from prism.pr_url import parse_pull_request_url
 
 
@@ -26,6 +33,7 @@ class ExplainPipeline:
         github: GitHubClient | None = None,
         greptile: GreptileClient | None = None,
         claude_mem: ClaudeMemClient | None = None,
+        repository_mapper: LocalRepositoryMapper | None = None,
         generator: DiagramGenerator | None = None,
     ) -> None:
         self.settings = settings
@@ -42,6 +50,11 @@ class ExplainPipeline:
         self.claude_mem = claude_mem or ClaudeMemClient(
             settings.resolved_claude_mem_base_url(),
             timeout=settings.claude_mem_timeout_seconds,
+        )
+        self.repository_mapper = repository_mapper or LocalRepositoryMapper(
+            settings.prism_cache_dir,
+            settings.github_token,
+            timeout=settings.request_timeout_seconds,
         )
         self.generator = generator or DiagramGenerator(
             cli_path=settings.codex_cli_path,
@@ -75,6 +88,7 @@ class ExplainPipeline:
         pull_request = self.github.get_pull_request(reference)
         cached = None if refresh else self.cache.get(pull_request.cache_key)
         if cached:
+            cached = self._ensure_repository_map(cached, pull_request)
             if not self.settings.claude_mem_enabled:
                 return cached.model_copy(
                     update={
@@ -95,17 +109,21 @@ class ExplainPipeline:
                         ),
                     }
                 )
-            return self._generate_result(pull_request, cached.greptile, memory_search)
+            return self._generate_result(
+                pull_request, cached.greptile, memory_search, cached.repository_map
+            )
 
+        repository_map = self.repository_mapper.build(pull_request)
         greptile = self.greptile.get_pull_request_context(pull_request)
         memory_search = self.claude_mem.search_for_pull_request(pull_request)
-        return self._generate_result(pull_request, greptile, memory_search)
+        return self._generate_result(pull_request, greptile, memory_search, repository_map)
 
     def _generate_result(
         self,
         pull_request: PullRequestContext,
         greptile: GreptileContext,
         memory_search: ClaudeMemSearchResult,
+        repository_map: RepositoryMap | None = None,
     ) -> AnalysisResult:
         generated = self.generator.generate(
             pull_request, greptile, memory_search.observations
@@ -116,17 +134,39 @@ class ExplainPipeline:
             warnings.append(greptile.error)
         if memory_search.warning:
             warnings.append(memory_search.warning)
+        if repository_map and repository_map.error:
+            warnings.append(repository_map.error)
 
         result = AnalysisResult(
             pull_request=pull_request,
             diagram=generated.diagram,
             greptile=greptile,
+            repository_map=repository_map,
             source=AnalysisSource.LIVE,
             generated_at=datetime.now(UTC).isoformat(),
             warnings=warnings,
         )
         self.cache.put(result)
         return result
+
+    def _ensure_repository_map(
+        self, cached: AnalysisResult, pull_request: PullRequestContext
+    ) -> AnalysisResult:
+        if cached.repository_map is not None and cached.repository_map.blocks:
+            return cached
+        repository_map = self.repository_mapper.build(pull_request)
+        warnings = list(cached.warnings)
+        if repository_map.error and repository_map.error not in warnings:
+            warnings.append(repository_map.error)
+        updated = cached.model_copy(
+            update={
+                "pull_request": pull_request,
+                "repository_map": repository_map,
+                "warnings": warnings,
+            }
+        )
+        self.cache.put(updated)
+        return updated
 
 
 def _default_fixtures_dir() -> Path:

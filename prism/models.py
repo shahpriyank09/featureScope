@@ -52,6 +52,7 @@ class PullRequestContext(BaseModel):
     title: str
     body: str = ""
     base_ref: str = "main"
+    base_sha: str | None = None
     head_sha: str
     html_url: str
     author: str | None = None
@@ -67,6 +68,84 @@ class GreptileContext(BaseModel):
     summary: str = ""
     review_comments: list[str] = Field(default_factory=list)
     raw: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+
+
+class RepositoryNodeKind(StrEnum):
+    DIRECTORY = "directory"
+    FILE = "file"
+    TEST = "test"
+    CONFIG = "config"
+    DOCUMENTATION = "documentation"
+
+
+class RepositoryChangeStatus(StrEnum):
+    UNCHANGED = "unchanged"
+    IMPACTED = "impacted"
+    MODIFIED = "modified"
+    ADDED = "added"
+    REMOVED = "removed"
+    RENAMED = "renamed"
+
+
+class RepositoryMapNode(BaseModel):
+    id: str
+    label: str
+    path: str
+    kind: RepositoryNodeKind = RepositoryNodeKind.FILE
+    status: RepositoryChangeStatus = RepositoryChangeStatus.UNCHANGED
+    language: str | None = None
+    symbols: list[str] = Field(default_factory=list)
+    url: str | None = None
+    focused: bool = False
+
+
+class RepositoryMapEdge(BaseModel):
+    source: str
+    target: str
+    kind: str = "imports"
+    label: str = ""
+
+
+class RepositoryBlockFile(BaseModel):
+    path: str
+    status: RepositoryChangeStatus = RepositoryChangeStatus.UNCHANGED
+    language: str | None = None
+    symbols: list[str] = Field(default_factory=list)
+    url: str | None = None
+
+
+class RepositoryBlock(BaseModel):
+    id: str
+    label: str
+    path: str
+    status: RepositoryChangeStatus = RepositoryChangeStatus.UNCHANGED
+    description: str
+    note_path: str
+    note: str
+    files: list[RepositoryBlockFile] = Field(default_factory=list)
+    focused: bool = False
+
+
+class RepositoryBlockEdge(BaseModel):
+    source: str
+    target: str
+    relationship_count: int = Field(default=1, gt=0)
+    label: str = ""
+
+
+class RepositoryMap(BaseModel):
+    repository: str
+    base_sha: str | None = None
+    head_sha: str
+    overview: str = ""
+    nodes: list[RepositoryMapNode] = Field(default_factory=list)
+    edges: list[RepositoryMapEdge] = Field(default_factory=list)
+    blocks: list[RepositoryBlock] = Field(default_factory=list)
+    block_edges: list[RepositoryBlockEdge] = Field(default_factory=list)
+    total_files: int = 0
+    analyzed_files: int = 0
+    truncated: bool = False
     error: str | None = None
 
 
@@ -159,6 +238,7 @@ class AnalysisResult(BaseModel):
     pull_request: PullRequestContext
     diagram: DiagramSpec
     greptile: GreptileContext = Field(default_factory=GreptileContext)
+    repository_map: RepositoryMap | None = None
     source: AnalysisSource = AnalysisSource.LIVE
     generated_at: str
     warnings: list[str] = Field(default_factory=list)

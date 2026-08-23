@@ -57,6 +57,11 @@ class GreptileClient:
                 return GreptileContext(error=f"Greptile MCP error: {message}")
 
             data = _extract_tool_payload(rpc_payload)
+            if tool_error := _tool_error_message(data):
+                return GreptileContext(
+                    raw=data if isinstance(data, dict) else {"value": data},
+                    error=f"Greptile repository context unavailable: {tool_error}",
+                )
             comments = _collect_review_comments(data)
             summary = _extract_summary(data) or "Greptile returned PR context."
             return GreptileContext(
@@ -129,3 +134,18 @@ def _collect_review_comments(payload: Any) -> list[str]:
 
     visit(payload)
     return list(dict.fromkeys(comments))
+
+
+def _tool_error_message(payload: Any) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    text = payload.get("text")
+    if not isinstance(text, str):
+        return None
+    normalized = text.strip().lower()
+    error_prefixes = (
+        "repository not found:",
+        "repository is not indexed",
+        "knowledge base not found",
+    )
+    return text.strip() if normalized.startswith(error_prefixes) else None
