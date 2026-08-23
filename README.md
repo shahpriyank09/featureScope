@@ -65,7 +65,8 @@ CODEX_MODEL=gpt-5.6-sol
 - `CODEX_MODEL=gpt-5.6-sol` prioritizes diagram quality for judging. Use `gpt-5.6-terra` if live
   generation needs to be faster.
 - Claude-Mem is optional. Leave `CLAUDE_MEM_BASE_URL` empty for automatic local worker discovery,
-  or set `CLAUDE_MEM_ENABLED=false` until Claude-Mem is running.
+  or set `CLAUDE_MEM_ENABLED=false` until Claude-Mem is running. The worker must contain at least
+  one observation before PRism can show relevant history.
 
 Confirm that configuration was loaded without printing secret values:
 
@@ -241,6 +242,7 @@ CODEX_CLI_TIMEOUT_SECONDS=240
 # Optional local Claude-Mem connection
 CLAUDE_MEM_ENABLED=true
 CLAUDE_MEM_BASE_URL=
+CLAUDE_MEM_TIMEOUT_SECONDS=30
 
 # Demo reliability
 PRISM_CACHE_DIR=.cache/prism
@@ -277,6 +279,9 @@ uv run streamlit run app.py
 
 # Run the CLI
 uv run prism explain https://github.com/OWNER/REPOSITORY/pull/NUMBER
+
+# Ignore cached context after adding new Claude-Mem observations
+uv run prism explain PR_URL --refresh
 
 # Use cached data during the presentation
 uv run prism explain PR_URL --offline
